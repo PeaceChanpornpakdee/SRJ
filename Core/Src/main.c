@@ -57,6 +57,8 @@ uint8_t ButtonArray[2] 	= {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
 uint64_t Timestamp = 0;
 
+uint8_t ProxiArray[2]   = {1,1};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -117,10 +119,12 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -530,6 +534,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 uint64_t micros()
 {
 	return _micros + htim2.Instance->CNT;
+}
+
+void ProxiCheck()
+{
+	ProxiArray[0] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
+	ProxiArray[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4);
 }
 
 //******************************************************************
