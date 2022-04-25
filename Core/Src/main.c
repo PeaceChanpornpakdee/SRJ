@@ -59,6 +59,10 @@ uint64_t Timestamp = 0;
 
 uint8_t ProxiArray[2]   = {1,1};
 
+int PWMOut = 0;
+
+int a = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,6 +79,9 @@ static void MX_TIM4_Init(void);
 
 void NucleoCheck();
 uint64_t micros();
+void ProxiCheck();
+void MotorDrive();
+void SetHome();
 
 /* USER CODE END PFP */
 
@@ -137,6 +144,12 @@ int main(void)
 		  Timestamp = micros();
 
 		  NucleoCheck();
+
+		  if(a == 1)
+		  {
+			  SetHome();
+			  a = 0;
+		  }
 	  }
 
     /* USER CODE END WHILE */
@@ -540,6 +553,44 @@ void ProxiCheck()
 {
 	ProxiArray[0] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
 	ProxiArray[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4);
+}
+
+void MotorDrive()
+{
+	if(PWMOut >= 0)
+	{
+		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, PWMOut);
+		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 0);
+	}
+	else
+	{
+		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, -PWMOut);
+	}
+}
+
+void SetHome()
+{
+	PWMOut = -2500;
+	while(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4) == 1)
+	{
+		MotorDrive();
+	}
+
+	PWMOut = -750;
+	while(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5) == 1)
+	{
+		MotorDrive();
+	}
+
+	MotorDrive();
+	HAL_Delay(200);
+
+	PWMOut = 0;
+	MotorDrive();
+	HAL_Delay(500);
+
+	HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
 }
 
 //******************************************************************
