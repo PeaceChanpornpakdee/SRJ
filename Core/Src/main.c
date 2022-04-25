@@ -53,7 +53,7 @@ DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
-uint8_t ButtonArray[2] 	= {1,1};  //[Now, Last] = {UP, UP}
+uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
 uint64_t Timestamp = 0;
 
@@ -62,6 +62,8 @@ uint8_t ProxiArray[2]   = {1,1};
 int PWMOut = 0;
 
 int a = 0;
+
+float RobotArm_Position = 0;
 
 /* USER CODE END PV */
 
@@ -82,6 +84,7 @@ uint64_t micros();
 void ProxiCheck();
 void MotorDrive();
 void SetHome();
+uint32_t EncoderPosition_Update();
 
 /* USER CODE END PFP */
 
@@ -131,6 +134,7 @@ int main(void)
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+  HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
 
   /* USER CODE END 2 */
 
@@ -144,12 +148,16 @@ int main(void)
 		  Timestamp = micros();
 
 		  NucleoCheck();
+//		  ProxiCheck();
+		  MotorDrive();
 
-		  if(a == 1)
-		  {
-			  SetHome();
-			  a = 0;
-		  }
+		  RobotArm_Position = EncoderPosition_Update();
+
+//		  if(a == 1)
+//		  {
+//			  SetHome();
+//			  a = 0;
+//		  }
 	  }
 
     /* USER CODE END WHILE */
@@ -590,7 +598,16 @@ void SetHome()
 	MotorDrive();
 	HAL_Delay(500);
 
-	HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+//	HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+}
+
+#define  HTIM_ENCODER htim1
+#define  MAX_SUBPOSITION_OVERFLOW 3600
+#define  MAX_ENCODER_PERIOD 7200
+
+uint32_t EncoderPosition_Update()
+{
+	return HTIM_ENCODER.Instance->CNT;
 }
 
 //******************************************************************
