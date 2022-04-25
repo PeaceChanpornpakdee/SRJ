@@ -32,6 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define EndeffAddress (0x23<<1)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -65,6 +66,11 @@ int a = 0;
 
 float RobotArm_Position = 0;
 
+uint8_t LaserOpenTrigger = 0;
+uint8_t LaserOpenCommand = 0x45;
+uint8_t LaserReadCommand = 0x23;
+uint8_t LaserStatus = 0x78;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -85,6 +91,8 @@ void ProxiCheck();
 void MotorDrive();
 void SetHome();
 uint32_t EncoderPosition_Update();
+void I2C_Laser();
+void I2C_Check();
 
 /* USER CODE END PFP */
 
@@ -149,9 +157,10 @@ int main(void)
 
 		  NucleoCheck();
 //		  ProxiCheck();
-		  MotorDrive();
+//		  MotorDrive();
+//		  I2C_Check();
 
-		  RobotArm_Position = EncoderPosition_Update();
+//		  RobotArm_Position = EncoderPosition_Update();
 
 //		  if(a == 1)
 //		  {
@@ -608,6 +617,26 @@ void SetHome()
 uint32_t EncoderPosition_Update()
 {
 	return HTIM_ENCODER.Instance->CNT;
+}
+
+void I2C_Laser()
+{
+	HAL_I2C_Master_Transmit(&hi2c1, EndeffAddress, &LaserOpenCommand, 1, 500);
+	for (int j=0; j<11; j++)
+	{
+		HAL_I2C_Master_Transmit(&hi2c1, EndeffAddress, &LaserReadCommand, 1, 500);
+		HAL_I2C_Master_Receive(&hi2c1, EndeffAddress, &LaserStatus, 1, 500);
+		HAL_Delay(500);
+	}
+}
+
+void I2C_Check()
+{
+	if(LaserOpenTrigger == 1)
+	{
+		I2C_Laser();
+		LaserOpenTrigger = 0;
+	}
 }
 
 //******************************************************************
