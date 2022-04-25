@@ -53,6 +53,10 @@ DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
+uint8_t ButtonArray[2] 	= {1,1};  //[Now, Last] = {UP, UP}
+uint64_t _micros = 0;
+uint64_t Timestamp = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,7 +70,10 @@ static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
+
 void NucleoCheck();
+uint64_t micros();
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -110,17 +117,29 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_Base_Start(&htim3);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  /////////////////////////////////////////////////////////////
   while (1)
   {
+	  if (micros() - Timestamp >= 1000) //1000us = 0.001s = 1kHz
+	  {
+		  Timestamp = micros();
+
+		  NucleoCheck();
+	  }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
+  /////////////////////////////////////////////////////////////
   /* USER CODE END 3 */
 }
 
@@ -487,7 +506,33 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+//******************************************************************
 
+void NucleoCheck()
+{
+	ButtonArray[1] = ButtonArray[0];
+	ButtonArray[0] = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
+
+	if(ButtonArray[0]==1 && ButtonArray[1]==0) //When Released Button
+	{
+		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim == &htim2)
+	{
+		_micros += 4294967295;
+	}
+}
+
+uint64_t micros()
+{
+	return _micros + htim2.Instance->CNT;
+}
+
+//******************************************************************
 /* USER CODE END 4 */
 
 /**
