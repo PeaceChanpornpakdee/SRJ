@@ -57,6 +57,10 @@ DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 
+uint8_t test = 0;
+
+
+
 uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
 uint64_t Timestamp = 0;
@@ -68,7 +72,7 @@ int PWMOut = 0;
 
 int aaa = 0;
 
-float RobotArm_Position = 0;
+uint16_t RobotArm_Position = 0;
 
 float dt    = 0.001;
 float K_P	= 1200;
@@ -84,12 +88,12 @@ float p=0;
 float i=0;
 float d=0;
 float pre_error=0;float error=0;
-uint8_t push=0;float n=0;float angle=0;float kalman_theta=0;float rb_pos=0;float float_encode=0;uint8_t flag_case1=0;uint8_t flag_case2=0;uint8_t flag_case3=0;
-uint8_t flag_case4=0;uint8_t flag_case5=0;uint8_t flag_case6=0;
+uint8_t push=0;float n=0;float angle=0;float kalman_theta=0;float rb_pos=0;float float_encode=0;
+uint8_t flag_case = 0;
 float get_station=0;float get_position=0;float now_postion=0;
 
-
-
+uint8_t reverse = 0;
+float distance = 0;
 
 uint8_t LaserOpenTrigger = 0;
 uint8_t LaserOpenCommand = 0x45;
@@ -277,6 +281,7 @@ int main(void)
 
 		  if(Run)
 		  {
+			  RobotArm_Position = EncoderPosition_Update();
 			  EncoderVelocity_Update();
 			  planning();
 			  kalmanfilter();
@@ -286,6 +291,7 @@ int main(void)
 
 		  else if(Home)
 		  {
+			  RobotArm_Position = EncoderPosition_Update();
 			  SetHome();
 		  }
 
@@ -295,7 +301,7 @@ int main(void)
 //		  MotorDrive();
 //		  I2C_Check();
 
-		  RobotArm_Position = EncoderPosition_Update();
+//		  RobotArm_Position = EncoderPosition_Update();
 	  }
 
     /* USER CODE END WHILE */
@@ -840,29 +846,30 @@ void kalmanfilter()
 }
 
 void planning()
-
-{ t=t+0.01;
+{
+  t=t+0.01;
   Vmax = 0.400;               //rad/s
-  sb=angle*0.0174533;            //degree 2 rad
-//  sa=0;
-  sa = Lastest_Angle * 0.0174533;   //sa = last angle from Home
+  sb = angle*0.0174533;            //degree 2 rad
+  sa = Lastest_Angle * 0.0174533;
   tf = 15.00*(sb-sa)/(8.00*Vmax);     //get tf from vmax
+  if(sb < sa) { reverse = 1; distance = Lastest_Angle - angle; }
+  else        { reverse = 0; distance = angle - Lastest_Angle; }
 
-  if (angle<=12)
-  {flag_case1=1;flag_case2=0;flag_case3=0;flag_case4=0;flag_case5=0;}
+  if (distance <= 12)
+  {flag_case = 1; }
 
-  if (angle>12 && angle<=30)
-  { flag_case3=1;flag_case1=0;flag_case2=0;flag_case4=0;flag_case5=0;}
+  if (distance > 12 && distance <=30)
+  { flag_case = 3; }
 
-  if (angle>30 && angle<=60)
-  {flag_case1=0;flag_case2=0;flag_case3=0;flag_case4=1;flag_case5=0;}
+  if (distance > 30 && distance <=60)
+  { flag_case = 4; }
 
-  if (angle>60 && angle<=90)
-   {flag_case1=0;flag_case2=0;flag_case3=0;flag_case4=0;flag_case5=1;}
+  if (distance > 60 && distance <=90)
+  { flag_case = 5; }
 
-  if (angle>90){
-	  flag_case1=0;flag_case3=0;
-	  flag_case2=1;
+  if (distance > 90){
+
+	  flag_case = 2;
 	  if(0.5>=(5.7335*(sb-sa)/(pow(tf,2))))  //check accerelation
 	  {tf=tf;}
 	  else{tf=pow((5.7335*(sb-sa)/0.5),0.5);}
@@ -875,13 +882,14 @@ void planning()
 	  if(t<=tf){
 	  sbf =  a3*pow(t,3)+a4*pow(t,4)+a5*pow(t,5);
 	  vb= (float)((3*a3*pow(t,2))+(4*a4*pow(t,3))+(5*a5*pow(t,4)));}
-	  else{t=tf;vb=0;PWMOut=0;}
+	  else{tf=0; t=tf;vb=0;PWMOut=0; MotorDrive(); HAL_Delay(10); Run=0; UART_Ack2();}
   }
 }
 
 void pid()
 {
-	if  (flag_case2==1){
+	if  (flag_case == 2)
+	{
 		 error = vb-omega_est;
 		 p = (error);
 		 i = i+error;
@@ -889,77 +897,123 @@ void pid()
 		 pre_error = error;
 		 PWMOut =195+( (p*K_P)+(i*K_I)+(d*K_D));
 		 if(vb==0)
-		 {PWMOut=0; Run=0; UART_Ack2(); }
+		 {PWMOut=0; MotorDrive(); HAL_Delay(10); Run=0; UART_Ack2(); }
 	}
 
-	else if (flag_case1==1)
+	else if (flag_case == 1)
 	{
-		if((RobotArm_Position) < (float)(angle/0.05))
+		if((RobotArm_Position) < (uint16_t)(angle*20))
 		{
 			PWMOut=400;
 		}
-		else if((RobotArm_Position) > (float)(angle/0.05))
-				{
-					PWMOut=-400;
-				}
-		else if((RobotArm_Position) == (float)(angle/0.05))
+		else if((RobotArm_Position) > (uint16_t)(angle*20))
+		{
+			PWMOut=-400;
+		}
+		else if((RobotArm_Position) == (uint16_t)(angle*20))
 		{
 			PWMOut=0;
 			Run=0;
 			UART_Ack2();
 		}
 	}
-	else if (flag_case3==1)
+	else if (flag_case == 3)
+	{
+		if(reverse)
 		{
-			if((RobotArm_Position) < (float)(angle/0.05))
+			if((RobotArm_Position) < (uint16_t)(angle*20))
+			{
+				PWMOut=400;
+			}
+			if((RobotArm_Position) > (uint16_t)(angle*20))
+			{
+				PWMOut=-1000;
+			}
+		}
+		else
+		{
+			if((RobotArm_Position) < (uint16_t)(angle*20))
 			{
 				PWMOut=1000;
 			}
-			else if((RobotArm_Position) > (float)(angle/0.05))
-					{
-						PWMOut=-400;
-					}
-			else if((RobotArm_Position) == (float)(angle/0.05))
+			if((RobotArm_Position) > (uint16_t)(angle*20))
 			{
-				PWMOut=0;
-				Run=0;
-				UART_Ack2();
+				PWMOut=-400;
 			}
 		}
-	else if (flag_case4==1)
+
+		if((RobotArm_Position) == (uint16_t)(angle*20))
+		{
+			PWMOut=0;
+			Run=0;
+			UART_Ack2();
+		}
+	}
+	else if (flag_case == 4)
+	{
+		if(reverse)
+		{
+			if((RobotArm_Position) < (uint16_t)(angle*20))
 			{
-				if((RobotArm_Position) < (float)(angle/0.05))
-				{
-					PWMOut=1500;
-				}
-				else if((RobotArm_Position) > (float)(angle/0.05))
-						{
-							PWMOut=-300;
-						}
-				else if((RobotArm_Position) == (float)(angle/0.05))
-				{
-					PWMOut=0;
-					Run=0;
-					UART_Ack2();
-				}
+				PWMOut=300;
 			}
-	else if (flag_case5==1)
+			else if((RobotArm_Position) > (uint16_t)(angle*20))
 			{
-				if((RobotArm_Position) < (float)(angle/0.05))
-				{
-					PWMOut=1600;
-				}
-				else if((RobotArm_Position) > (float)(angle/0.05))
-						{
-							PWMOut=-300;
-						}
-				else if((RobotArm_Position) == (float)(angle/0.05))
-				{
-					PWMOut=0;
-					Run=0;
-					UART_Ack2();
-				}
+				PWMOut=-1500;
 			}
+		}
+		else
+		{
+			if((RobotArm_Position) < (uint16_t)(angle*20))
+			{
+				PWMOut=1500;
+			}
+			else if((RobotArm_Position) > (uint16_t)(angle*20))
+			{
+				PWMOut=-300;
+			}
+		}
+
+
+		if((RobotArm_Position) == (uint16_t)(angle*20))
+		{
+			PWMOut=0;
+			Run=0;
+			UART_Ack2();
+		}
+	}
+	else if (flag_case == 5)
+	{
+		if(reverse)
+		{
+			if((RobotArm_Position) < (uint16_t)(angle*20))
+			{
+				PWMOut=300;
+			}
+			else if((RobotArm_Position) > (uint16_t)(angle*20))
+			{
+				PWMOut=-1600;
+			}
+		}
+		else
+		{
+			if((RobotArm_Position) < (uint16_t)(angle*20))
+			{
+				PWMOut=1600;
+			}
+			else if((RobotArm_Position) > (uint16_t)(angle*20))
+			{
+				PWMOut=-300;
+			}
+		}
+
+		if((RobotArm_Position) == (uint16_t)(angle*20))
+		{
+			PWMOut=0;
+			Run=0;
+			UART_Ack2();
+		}
+	}
 }
 
 
@@ -1287,20 +1341,20 @@ void UART_Execute()
 			Goal_Mode = 1;
 			Goal_Angle = (Data_Frame2[0] * 256) + Data_Frame2[1];
 			Goal_Angle = Goal_Angle / (pi * 10000) * 180.0;
-			angle = Goal_Angle;
+			angle = round(Goal_Angle);
 			Lastest_Angle = Current_Angle;
 			break;
 		case 6:
 			Goal_Mode = 2;
 			Single_Station = Data_Frame2[1];
 			angle = Multi_Station_Angle[Single_Station];
-			Lastest_Angle = Current_Angle;
+			Lastest_Angle = Current_Angle; //Fix Later
 			break;
 		case 7:
 			Goal_Mode = 3;
 			Current_Multi_Station = 1;
 			// Angle will come in the future
-			Lastest_Angle = Current_Angle;
+			Lastest_Angle = Current_Angle;  //Fix Later
 			break;
 		case 8:
 			Run = 1;
