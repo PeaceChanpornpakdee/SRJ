@@ -148,7 +148,8 @@ uint8_t Multi_Station[16] = {0};
 uint8_t Multi_Station_Amount = 0;
 uint8_t Multi_Station_Current = 0;
 
-uint16_t Multi_Station_Angle[10] = {0};
+//uint16_t Multi_Station_Angle[10] = {0};
+uint16_t Multi_Station_Angle[11] = {0,    5,45,55,65,90,180,210,270,325,355};
 
 uint8_t UART_Mode = 0;
 
