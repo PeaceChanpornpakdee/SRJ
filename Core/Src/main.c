@@ -22,7 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "math.h"
+#include "stdio.h"
+#include <stdlib.h>
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,19 +60,111 @@ DMA_HandleTypeDef hdma_usart2_tx;
 uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
 uint64_t Timestamp = 0;
-
+uint64_t HomeTimestamp = 0;
+uint8_t  HomeMode = 0;
 uint8_t ProxiArray[2]   = {1,1};
 
 int PWMOut = 0;
 
-int a = 0;
+int aaa = 0;
 
 float RobotArm_Position = 0;
+
+float dt    = 0.001;
+float K_P	= 1200;
+float K_I	= 650;
+float K_D	= 0;
+
+float a=0.9;float w=0.103;
+float rad=0;float raw=0;
+float Q=0;float R=0;float theta_est=0;float omega_est=0;float dt1=0.01;float theta_pd=0;float y=0;float p11=0;
+float p12=0;float p21=0;float p22=0;float omega_pd=0;float a0=0;float a1=0;float a2=0;float a3=0;float a4=0;float a5=0;
+float sb=0;float sa=0;float tf=0;float vb=0;float sbf=0;float t=0;float Vmax=0;float vcon =0;
+float p=0;
+float i=0;
+float d=0;
+float pre_error=0;float error=0;
+uint8_t push=0;float n=0;float angle=0;float kalman_theta=0;float rb_pos=0;float float_encode=0;uint8_t flag_case1=0;uint8_t flag_case2=0;uint8_t flag_case3=0;
+uint8_t flag_case4=0;uint8_t flag_case5=0;uint8_t flag_case6=0;
+float get_station=0;float get_position=0;float now_postion=0;
+
+
+
 
 uint8_t LaserOpenTrigger = 0;
 uint8_t LaserOpenCommand = 0x45;
 uint8_t LaserReadCommand = 0x23;
 uint8_t LaserStatus = 0x78;
+
+typedef struct _UartStructure
+{
+	UART_HandleTypeDef *huart;
+	uint16_t TxLen, RxLen;
+	uint8_t *TxBuffer;
+	uint16_t TxTail, TxHead;
+	uint8_t *RxBuffer;
+	uint16_t RxTail;
+
+} UARTStucrture;
+
+UARTStucrture UART2 = { 0 };
+
+float pi = 3.14159265359;
+
+float    Lastest_Angle = 0;
+float    Current_Angle = 0;
+uint8_t  Current_Station = 0;
+uint8_t  Current_Multi_Station = 0; // 1-15
+uint8_t  Clockwise = 0;
+uint8_t  Goal_Mode = 1; // 1-3
+float    Speed = 0;
+uint8_t   s = 0;
+uint8_t ak[2] = {0};
+
+uint8_t  Serial_Mode;
+uint16_t Serial_Angle;
+uint8_t  Serial_Speed;
+
+uint16_t Delay = 0;
+uint8_t Run = 0;
+uint8_t Home = 0;
+uint8_t MCU_Connected = 0;
+uint8_t EndEff_Enable = 0;
+float Max_Speed = 0;
+float Goal_Angle = 0;
+uint8_t Single_Station = 0;
+
+int16_t InputChar      	= 0;
+uint8_t InputByte 		= 0;
+uint8_t ChkSum			= 0;
+uint8_t Data_Frame2[2]  = {0};
+uint8_t Data_Frame3[8]  = {0};
+
+uint8_t Multi_Station[16] = {0};
+uint8_t Multi_Station_Amount = 0;
+uint8_t Multi_Station_Current = 0;
+
+uint16_t Multi_Station_Angle[10] = {0};
+
+uint8_t UART_Mode = 0;
+
+uint8_t UART_Mode_Print = 0;
+
+typedef enum
+{
+	Start,
+
+	Frame1_CheckSum,
+
+	Frame2_Data1,
+	Frame2_Data2,
+	Frame2_CheckSum,
+
+	Frame3_Station,
+	Frame3_Data,
+	Frame3_CheckSum,
+
+} ProtocalState;
 
 /* USER CODE END PV */
 
@@ -93,6 +188,23 @@ void SetHome();
 uint32_t EncoderPosition_Update();
 void I2C_Laser();
 void I2C_Check();
+float EncoderVelocity_Update();
+void pid();
+void kalmanfilter();
+void planning();
+
+void UARTInit(UARTStucrture *uart);
+void UARTResetStart(UARTStucrture *uart);
+uint32_t UARTGetRxHead(UARTStucrture *uart);
+int16_t UARTReadChar(UARTStucrture *uart);
+void UARTTxDumpBuffer(UARTStucrture *uart);
+void UARTTxWrite(UARTStucrture *uart, uint8_t *pData, uint16_t len);
+
+void UART_Ack1();
+void UART_Ack2();
+void UART_Flow2();
+void UART_Protocal();
+void UART_Execute();
 
 /* USER CODE END PFP */
 
@@ -137,13 +249,19 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+  UART2.huart = &huart2;
+  UART2.RxLen = 255;
+  UART2.TxLen = 255;
+  UARTInit(&UART2);
+  UARTResetStart(&UART2);
 
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-  HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
-
+//  HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+  HomeMode = 10;
+  SetHome();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -151,22 +269,33 @@ int main(void)
   /////////////////////////////////////////////////////////////
   while (1)
   {
-	  if (micros() - Timestamp >= 1000) //1000us = 0.001s = 1kHz
+	  UART_Protocal();
+
+	  if (micros() - Timestamp >= 10000) //10000us = 0.01s = 100Hz
 	  {
 		  Timestamp = micros();
+
+		  if(Run)
+		  {
+			  EncoderVelocity_Update();
+			  planning();
+			  kalmanfilter();
+			  pid();
+			  MotorDrive();
+		  }
+
+		  else if(Home)
+		  {
+			  SetHome();
+		  }
+
 
 		  NucleoCheck();
 //		  ProxiCheck();
 //		  MotorDrive();
 //		  I2C_Check();
 
-//		  RobotArm_Position = EncoderPosition_Update();
-
-//		  if(a == 1)
-//		  {
-//			  SetHome();
-//			  a = 0;
-//		  }
+		  RobotArm_Position = EncoderPosition_Update();
 	  }
 
     /* USER CODE END WHILE */
@@ -464,10 +593,10 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.BaudRate = 512000;
+  huart2.Init.WordLength = UART_WORDLENGTH_9B;
   huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Parity = UART_PARITY_EVEN;
   huart2.Init.Mode = UART_MODE_TX_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;
@@ -588,26 +717,71 @@ void MotorDrive()
 
 void SetHome()
 {
-	PWMOut = -2500;
-	while(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4) == 1)
+	if(HomeMode == 1)
 	{
+		PWMOut = 750;
 		MotorDrive();
+		if (micros() - HomeTimestamp >= 200000) //200000us = 0.2s
+		{
+			HomeMode = 2;
+		}
+	}
+	else if(HomeMode == 2)
+	{
+		PWMOut = -2500;
+		MotorDrive();
+		if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4) == 0)
+		{
+			HomeMode = 3;
+		}
+	}
+	else if(HomeMode == 3)
+	{
+		PWMOut = -600;
+		MotorDrive();
+		if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5) == 0)
+		{
+			HomeMode = 4;
+			HomeTimestamp = micros();
+		}
 	}
 
-	PWMOut = -750;
-	while(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5) == 1)
+	else if(HomeMode == 4)
 	{
+		PWMOut = 0;
 		MotorDrive();
+		if (micros() - HomeTimestamp >= 500000) //500000us = 0.5s
+		{
+			htim1.Instance->CNT = 0;
+			HomeMode = 0;
+			Home = 0;
+		}
 	}
 
-	MotorDrive();
-	HAL_Delay(200);
+	else if(HomeMode == 10)
+	{
+		PWMOut = 750;
+		MotorDrive();
+		HAL_Delay(200);
 
-	PWMOut = 0;
-	MotorDrive();
-	HAL_Delay(500);
+		PWMOut = -2500;
+		while(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4) == 1)
+		{
+			MotorDrive();
+		}
 
-//	HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+		PWMOut = -600;
+		while(HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5) == 1)
+		{
+			MotorDrive();
+		}
+
+		PWMOut = 0;
+		MotorDrive();
+		HAL_Delay(500);
+		HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+		HomeMode = 0;
+	}
 }
 
 #define  HTIM_ENCODER htim1
@@ -618,6 +792,180 @@ uint32_t EncoderPosition_Update()
 {
 	return HTIM_ENCODER.Instance->CNT;
 }
+
+float EncoderVelocity_Update()
+{   static uint32_t EncoderLastPosition = 0;
+	static uint64_t EncoderLastTimestamp = 0;
+	uint32_t EncoderNowPosition = HTIM_ENCODER.Instance->CNT;
+	uint64_t EncoderNowTimestamp = micros();
+	int32_t EncoderPositionDiff;
+	uint64_t EncoderTimeDiff;
+	EncoderTimeDiff = EncoderNowTimestamp - EncoderLastTimestamp;
+	EncoderPositionDiff = EncoderNowPosition - EncoderLastPosition;
+	if (EncoderPositionDiff >= MAX_SUBPOSITION_OVERFLOW)
+	{EncoderPositionDiff -= MAX_ENCODER_PERIOD;}
+	else if (-EncoderPositionDiff >= MAX_SUBPOSITION_OVERFLOW)
+	{EncoderPositionDiff += MAX_ENCODER_PERIOD;}
+	EncoderLastPosition = EncoderNowPosition;
+	EncoderLastTimestamp = EncoderNowTimestamp;
+	raw =(float)(EncoderPositionDiff * 1000000.00) / (float) EncoderTimeDiff;
+	rad = raw* 0.05*2.00*3.141592/360.00;
+	return  rad;
+}
+
+void kalmanfilter()
+{    Q = pow(a,2);
+	 R = pow(w,2);
+	 theta_est = theta_pd + omega_pd*dt1;
+	 omega_est = omega_pd;
+	 y = (rad-omega_est);
+
+    p11 = p11 + dt1*p21+ (Q*pow(dt1,4))/4 + (pow(dt1,2))*(p12+dt1*p22)/dt1;
+    p12 = p12 + dt1*p22 + (Q*dt1*pow(dt1,2))/2;
+    p21 = (2*dt1*p21+Q*pow(dt1,4) + 2*p22*pow(dt1,2))/(2*dt1);
+    p22 = Q*pow(dt1,2)+p22;
+
+    theta_est+= (p12*y)/(R+p22);
+    omega_est+= (p22*y)/(R+p22);
+
+    p11=p11-(p12*p21)/(R+p22);
+    p12=p12-(p22*p21)/(R+p22);
+    p21=-p21*(p22/(R+p22)-1);
+    p22=-p22*(p22/(R+p22)-1);
+
+    theta_pd=theta_est;
+    omega_pd=omega_est;
+
+    kalman_theta=(float)(theta_est*57.2958);
+}
+
+void planning()
+
+{ t=t+0.01;
+  Vmax = 0.400;               //rad/s
+  sb=angle*0.0174533;            //degree 2 rad
+//  sa=0;
+  sa = Lastest_Angle * 0.0174533;   //sa = last angle from Home
+  tf = 15.00*(sb-sa)/(8.00*Vmax);     //get tf from vmax
+
+  if (angle<=12)
+  {flag_case1=1;flag_case2=0;flag_case3=0;flag_case4=0;flag_case5=0;}
+
+  if (angle>12 && angle<=30)
+  { flag_case3=1;flag_case1=0;flag_case2=0;flag_case4=0;flag_case5=0;}
+
+  if (angle>30 && angle<=60)
+  {flag_case1=0;flag_case2=0;flag_case3=0;flag_case4=1;flag_case5=0;}
+
+  if (angle>60 && angle<=90)
+   {flag_case1=0;flag_case2=0;flag_case3=0;flag_case4=0;flag_case5=1;}
+
+  if (angle>90){
+	  flag_case1=0;flag_case3=0;
+	  flag_case2=1;
+	  if(0.5>=(5.7335*(sb-sa)/(pow(tf,2))))  //check accerelation
+	  {tf=tf;}
+	  else{tf=pow((5.7335*(sb-sa)/0.5),0.5);}
+	  a0=0;
+	  a1=0;
+	  a2=0;
+	  a3= 10.00*(sb-sa)/(pow(tf,3));
+	  a4= -15.00*(sb-sa)/(pow(tf,4));
+	  a5= 6.00*(sb-sa)/(pow(tf,5));
+	  if(t<=tf){
+	  sbf =  a3*pow(t,3)+a4*pow(t,4)+a5*pow(t,5);
+	  vb= (float)((3*a3*pow(t,2))+(4*a4*pow(t,3))+(5*a5*pow(t,4)));}
+	  else{t=tf;vb=0;PWMOut=0;}
+  }
+}
+
+void pid()
+{
+	if  (flag_case2==1){
+		 error = vb-omega_est;
+		 p = (error);
+		 i = i+error;
+		 d = error - pre_error;
+		 pre_error = error;
+		 PWMOut =195+( (p*K_P)+(i*K_I)+(d*K_D));
+		 if(vb==0)
+		 {PWMOut=0; Run=0; UART_Ack2(); }
+	}
+
+	else if (flag_case1==1)
+	{
+		if((RobotArm_Position) < (float)(angle/0.05))
+		{
+			PWMOut=400;
+		}
+		else if((RobotArm_Position) > (float)(angle/0.05))
+				{
+					PWMOut=-400;
+				}
+		else if((RobotArm_Position) == (float)(angle/0.05))
+		{
+			PWMOut=0;
+			Run=0;
+			UART_Ack2();
+		}
+	}
+	else if (flag_case3==1)
+		{
+			if((RobotArm_Position) < (float)(angle/0.05))
+			{
+				PWMOut=1000;
+			}
+			else if((RobotArm_Position) > (float)(angle/0.05))
+					{
+						PWMOut=-400;
+					}
+			else if((RobotArm_Position) == (float)(angle/0.05))
+			{
+				PWMOut=0;
+				Run=0;
+				UART_Ack2();
+			}
+		}
+	else if (flag_case4==1)
+			{
+				if((RobotArm_Position) < (float)(angle/0.05))
+				{
+					PWMOut=1500;
+				}
+				else if((RobotArm_Position) > (float)(angle/0.05))
+						{
+							PWMOut=-300;
+						}
+				else if((RobotArm_Position) == (float)(angle/0.05))
+				{
+					PWMOut=0;
+					Run=0;
+					UART_Ack2();
+				}
+			}
+	else if (flag_case5==1)
+			{
+				if((RobotArm_Position) < (float)(angle/0.05))
+				{
+					PWMOut=1600;
+				}
+				else if((RobotArm_Position) > (float)(angle/0.05))
+						{
+							PWMOut=-300;
+						}
+				else if((RobotArm_Position) == (float)(angle/0.05))
+				{
+					PWMOut=0;
+					Run=0;
+					UART_Ack2();
+				}
+			}
+}
+
+
+
+
+
 
 void I2C_Laser()
 {
@@ -637,6 +985,352 @@ void I2C_Check()
 		I2C_Laser();
 		LaserOpenTrigger = 0;
 	}
+}
+
+void UARTInit(UARTStucrture *uart)
+{
+	//dynamic memory allocate
+	uart->RxBuffer = (uint8_t*) calloc(sizeof(uint8_t), UART2.RxLen);
+	uart->TxBuffer = (uint8_t*) calloc(sizeof(uint8_t), UART2.TxLen);
+	uart->RxTail = 0;
+	uart->TxTail = 0;
+	uart->TxHead = 0;
+
+}
+
+void UARTResetStart(UARTStucrture *uart)
+{
+	HAL_UART_Receive_DMA(uart->huart, uart->RxBuffer, uart->RxLen);
+}
+
+uint32_t UARTGetRxHead(UARTStucrture *uart)
+{
+	return uart->RxLen - __HAL_DMA_GET_COUNTER(uart->huart->hdmarx);
+}
+
+int16_t UARTReadChar(UARTStucrture *uart)
+{
+	int16_t Result = -1; // -1 Mean no new data
+
+	//check Buffer Position
+	if (uart->RxTail != UARTGetRxHead(uart))
+	{
+		//get data from buffer
+		Result = uart->RxBuffer[uart->RxTail];
+		uart->RxTail = (uart->RxTail + 1) % uart->RxLen;
+
+	}
+	return Result;
+}
+
+void UARTTxDumpBuffer(UARTStucrture *uart)
+{
+	static uint8_t MultiProcessBlocker = 0;
+
+	if (uart->huart->gState == HAL_UART_STATE_READY && !MultiProcessBlocker)
+	{
+		MultiProcessBlocker = 1;
+
+		if (uart->TxHead != uart->TxTail)
+		{
+			//find len of data in buffer (Circular buffer but do in one way)
+			uint16_t sentingLen =
+					uart->TxHead > uart->TxTail ?
+							uart->TxHead - uart->TxTail :
+							uart->TxLen - uart->TxTail;
+
+			//sent data via DMA
+			HAL_UART_Transmit_DMA(uart->huart, &(uart->TxBuffer[uart->TxTail]),
+					sentingLen);
+			//move tail to new position
+			uart->TxTail = (uart->TxTail + sentingLen) % uart->TxLen;
+
+		}
+		MultiProcessBlocker = 0;
+	}
+}
+
+void UARTTxWrite(UARTStucrture *uart, uint8_t *pData, uint16_t len)
+{
+	//check data len is more than buffur?
+	uint16_t lenAddBuffer = (len <= uart->TxLen) ? len : uart->TxLen;
+	// find number of data before end of ring buffer
+	uint16_t numberOfdataCanCopy =
+			lenAddBuffer <= uart->TxLen - uart->TxHead ?
+					lenAddBuffer : uart->TxLen - uart->TxHead;
+	//copy data to the buffer
+	memcpy(&(uart->TxBuffer[uart->TxHead]), pData, numberOfdataCanCopy);
+
+	//Move Head to new position
+
+	uart->TxHead = (uart->TxHead + lenAddBuffer) % uart->TxLen;
+	//Check that we copy all data That We can?
+	if (lenAddBuffer != numberOfdataCanCopy)
+	{
+		memcpy(uart->TxBuffer, &(pData[numberOfdataCanCopy]),
+				lenAddBuffer - numberOfdataCanCopy);
+	}
+	UARTTxDumpBuffer(uart);
+}
+
+void UART_Ack1()
+{
+	uint8_t temp[1];
+	temp[0] = 'X'; //0x58
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+	temp[0] = 'u'; //0b01110101
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+}
+
+void UART_Ack2()
+{
+	uint8_t temp[1];
+	temp[0] = 'F'; //70
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+	temp[0] = 'n'; //0o156
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+}
+
+void UART_Flow2()
+{
+	Serial_Mode  = (0b10010000 | UART_Mode);
+	Serial_Angle = (uint16_t)(Current_Angle * 10000 * pi / 180);
+	Serial_Speed = (uint8_t) (Speed * 255 / 10);
+
+	ChkSum = Serial_Mode;
+
+	uint8_t temp[1];
+	temp[0] = Serial_Mode;
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+
+	if(UART_Mode == 10) { temp[0] = (uint8_t)(Serial_Angle / 256); }
+	else                { temp[0] = 0; }
+	ChkSum += temp[0];
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+
+	if(UART_Mode == 9)       { temp[0] = Current_Station; }
+	else if(UART_Mode == 10) { temp[0] = (uint8_t)(Serial_Angle % 256); }
+	else if(UART_Mode == 11) { temp[0] = Serial_Speed; }
+	ChkSum += temp[0];
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+
+	ChkSum = ~(ChkSum);
+	temp[0] = ChkSum;
+	UARTTxWrite(&UART2, temp, 1);
+	HAL_Delay(1);
+
+	while(1)
+	{
+		while(1)
+		{
+			InputChar = UARTReadChar(&UART2);
+			if(InputChar != -1)
+			{
+				InputByte = (uint8_t)InputChar;
+				ak[0] = InputByte;
+				break;
+			}
+		}
+		while(1)
+		{
+			InputChar = UARTReadChar(&UART2);
+			if(InputChar != -1)
+			{
+				InputByte = (uint8_t)InputChar;
+				ak[1] = InputByte;
+				break;
+			}
+		}
+		if(ak[0] == 'X' && ak[1] == 'u')
+		{
+			break;
+		}
+	}
+}
+
+
+void UART_Protocal()
+{
+	static ProtocalState State = Start;
+
+	InputChar = UARTReadChar(&UART2);
+
+	if (InputChar != -1)
+	{
+		InputByte = (uint8_t)InputChar;
+
+		switch(State)
+		{
+			case Start:
+				if( ((InputByte>>4) & 0b00001111) == 0b00001001)
+				{
+					UART_Mode = InputByte & 0b00001111;
+					UART_Mode_Print = UART_Mode;
+				}
+				if(UART_Mode >=1 && UART_Mode <= 14)
+				{
+
+					if(UART_Mode == 2 || UART_Mode == 3 || UART_Mode >= 8)
+					{
+						State = Frame1_CheckSum;
+					}
+					else if(UART_Mode == 1 || UART_Mode == 4 || UART_Mode == 5 || UART_Mode == 6)
+					{
+						State = Frame2_Data1;
+
+					}
+					else if(UART_Mode == 7)
+					{
+						State = Frame3_Station;
+					}
+				}
+				break;
+
+			case Frame1_CheckSum:
+				ChkSum = ~(0b10010000 | UART_Mode);
+				if(InputByte == ChkSum)
+				{
+					UART_Ack1();
+					UART_Execute();
+				}
+				ChkSum = 0;
+				State = Start;
+				break;
+
+			case Frame2_Data1:
+				Data_Frame2[0] = InputByte;
+				State = Frame2_Data2;
+				break;
+
+			case Frame2_Data2:
+				Data_Frame2[1] = InputByte;
+				State = Frame2_CheckSum;
+				break;
+
+			case Frame2_CheckSum:
+				ChkSum = ~( (0b10010000 | UART_Mode) + Data_Frame2[0] + Data_Frame2[1] );
+				if(InputByte == ChkSum)
+				{
+					UART_Ack1();
+					UART_Execute();
+				}
+				ChkSum = 0;
+				State = Start;
+				break;
+
+			case Frame3_Station:
+				Multi_Station_Amount = InputByte;
+				State = Frame3_Data;
+				break;
+
+			case Frame3_Data:
+				Data_Frame3   [(int)Multi_Station_Current/2] = InputByte;
+				Multi_Station [Multi_Station_Current]        = InputByte & 0b00001111;
+				Multi_Station [Multi_Station_Current+1] 	 = InputByte >> 4;
+				Multi_Station_Current += 2;
+				if(Multi_Station_Current >= Multi_Station_Amount)
+				{
+					Multi_Station_Current = 0;
+					State = Frame3_CheckSum;
+				}
+				break;
+
+			case Frame3_CheckSum:
+				ChkSum = (0b10010000 | UART_Mode);
+				ChkSum += Multi_Station_Amount;
+				for(int i=0 ; i < (int)((Multi_Station_Amount+1)/2) ; i++)
+				{
+					ChkSum += Data_Frame3[i];
+				}
+				ChkSum = ~(ChkSum);
+				if(InputByte == ChkSum)
+				{
+					UART_Ack1();
+					UART_Execute();
+				}
+				ChkSum = 0;
+				State = Start;
+				break;
+
+			default:
+				State = Start;
+				break;
+		}
+	}
+
+}
+
+void UART_Execute()
+{
+	switch(UART_Mode)
+	{
+		case 1:
+			break;
+		case 2:
+			MCU_Connected = 1;
+			break;
+		case 3:
+			MCU_Connected = 0;
+			break;
+		case 4:
+			Max_Speed = Data_Frame2[1] * 10 / 255;
+			Vmax = Max_Speed;
+			break;
+		case 5:
+			Goal_Mode = 1;
+			Goal_Angle = (Data_Frame2[0] * 256) + Data_Frame2[1];
+			Goal_Angle = Goal_Angle / (pi * 10000) * 180.0;
+			angle = Goal_Angle;
+			Lastest_Angle = Current_Angle;
+			break;
+		case 6:
+			Goal_Mode = 2;
+			Single_Station = Data_Frame2[1];
+			angle = Multi_Station_Angle[Single_Station];
+			Lastest_Angle = Current_Angle;
+			break;
+		case 7:
+			Goal_Mode = 3;
+			Current_Multi_Station = 1;
+			// Angle will come in the future
+			Lastest_Angle = Current_Angle;
+			break;
+		case 8:
+			Run = 1;
+			break;
+		case 9:
+			UART_Flow2();
+			break;
+		case 10:
+			Current_Angle = ( EncoderPosition_Update() * 360.0 / 7200.0 );
+			UART_Flow2();
+			break;
+		case 11:
+			Speed = ( EncoderVelocity_Update() * 9.5493 );
+			UART_Flow2();
+			break;
+		case 12:
+			EndEff_Enable = 1;
+			break;
+		case 13:
+			EndEff_Enable = 0;
+			break;
+		case 14:
+			Home = 1;
+			HomeMode = 1;
+			HomeTimestamp = micros();
+			break;
+		case 15:
+			break;
+	}
+	UART_Mode = 0;
 }
 
 //******************************************************************
