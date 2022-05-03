@@ -65,12 +65,11 @@ uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
 uint64_t Timestamp = 0;
 uint64_t HomeTimestamp = 0;
+uint64_t LaserTimestamp = 0;
 uint8_t  HomeMode = 0;
 uint8_t ProxiArray[2]   = {1,1};
 
 int PWMOut = 0;
-
-int aaa = 0;
 
 uint16_t RobotArm_Position = 0;
 
@@ -132,6 +131,7 @@ uint8_t  Serial_Speed;
 uint16_t Delay = 0;
 uint8_t Run = 0;
 uint8_t Home = 0;
+uint8_t Laser = 0;
 uint8_t MCU_Connected = 0;
 uint8_t EndEff_Enable = 0;
 float Max_Speed = 0;
@@ -196,6 +196,7 @@ uint32_t EncoderPosition_Update();
 void I2C_Laser();
 void I2C_Check();
 float EncoderVelocity_Update();
+void ReachGoal();
 void pid();
 void kalmanfilter();
 void planning();
@@ -266,7 +267,6 @@ int main(void)
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-//  HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
   HomeMode = 10;
   SetHome();
   /* USER CODE END 2 */
@@ -317,7 +317,36 @@ int main(void)
 			  UART_Protocal();
 		  }
 
-		  if(Run)
+		  //----------------------------------------------
+
+		  if(Laser)
+		  {
+			  if (micros() - LaserTimestamp >= 5000000) //5000000us = 5s
+			  {
+				  if(Goal_Mode == 3)
+				  {
+					  if(Current_Multi_Station == Multi_Station_Amount-1)
+					  {
+						  UART_Ack2();
+					  }
+					  else
+					  {
+						  Current_Multi_Station += 1;
+						  angle = Multi_Station_Angle[ Multi_Station[Current_Multi_Station] ];
+						  Lastest_Angle = Current_Angle;
+						  Run = 1;
+					  }
+				  }
+				  else
+				  {
+					  UART_Ack2();
+				  }
+				  Laser = 0;
+				  t = 0;
+			  }
+		  }
+
+		  else if(Run)
 		  {
 			  RobotArm_Position = EncoderPosition_Update();
 			  EncoderVelocity_Update();
@@ -884,10 +913,9 @@ void kalmanfilter()
 void planning()
 {
   t=t+0.01;
-  Vmax = 0.400;               //rad/s
-  sb = angle*0.0174533;            //degree 2 rad
-  sa = Lastest_Angle * 0.0174533;
-//  tf = 15.00*(sb-sa)/(8.00*Vmax);     //get tf from vmax
+  Vmax = 0.400;                   //rad/s
+  sb = angle*0.0174533;           //degree -> rad
+  sa = Lastest_Angle * 0.0174533; //degree -> rad
 
   if(sb < sa) { reverse = 1; distance = Lastest_Angle - angle; tf = 15.00*(sa-sb)/(8.00*Vmax); }
   else        { reverse = 0; distance = angle - Lastest_Angle; tf = 15.00*(sb-sa)/(8.00*Vmax); }
@@ -923,6 +951,16 @@ void planning()
 	  else { vb=0; }
   }
 }
+
+void ReachGoal()
+{
+	PWMOut=0;
+	MotorDrive();
+	Run=0;
+	Laser = 1;
+	LaserTimestamp = micros();
+}
+
 
 void pid()
 {
@@ -962,9 +1000,7 @@ void pid()
 
 			if((RobotArm_Position) == (uint16_t)(angle*20))
 			{
-				PWMOut=0;
-				Run=0;
-				UART_Ack2();
+				ReachGoal();
 			}
 		 }
 	}
@@ -981,9 +1017,7 @@ void pid()
 		}
 		else if((RobotArm_Position) == (uint16_t)(angle*20))
 		{
-			PWMOut=0;
-			Run=0;
-			UART_Ack2();
+			ReachGoal();
 		}
 	}
 	else if (flag_case == 3)
@@ -1013,9 +1047,7 @@ void pid()
 
 		if((RobotArm_Position) == (uint16_t)(angle*20))
 		{
-			PWMOut=0;
-			Run=0;
-			UART_Ack2();
+			ReachGoal();
 		}
 	}
 	else if (flag_case == 4)
@@ -1046,9 +1078,7 @@ void pid()
 
 		if((RobotArm_Position) == (uint16_t)(angle*20))
 		{
-			PWMOut=0;
-			Run=0;
-			UART_Ack2();
+			ReachGoal();
 		}
 	}
 	else if (flag_case == 5)
@@ -1078,17 +1108,10 @@ void pid()
 
 		if((RobotArm_Position) == (uint16_t)(angle*20))
 		{
-			PWMOut=0;
-			Run=0;
-			UART_Ack2();
+			ReachGoal();
 		}
 	}
 }
-
-
-
-
-
 
 void I2C_Laser()
 {
@@ -1389,13 +1412,13 @@ void UART_Execute()
 			Goal_Mode = 2;
 			Single_Station = Data_Frame2[1];
 			angle = Multi_Station_Angle[Single_Station];
-			Lastest_Angle = Current_Angle; //Fix Later
+			Lastest_Angle = Current_Angle;
 			break;
 		case 7:
 			Goal_Mode = 3;
-			Current_Multi_Station = 1;
-			// Angle will come in the future
-			Lastest_Angle = Current_Angle;  //Fix Later
+			Current_Multi_Station = 0;
+			angle = Multi_Station_Angle[ Multi_Station[Current_Multi_Station] ];
+			Lastest_Angle = Current_Angle;
 			break;
 		case 8:
 			t = 0;
