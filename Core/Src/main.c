@@ -154,6 +154,8 @@ uint8_t UART_Mode = 0;
 
 uint8_t UART_Mode_Print = 0;
 
+uint8_t UART_Flow2_Ack = 0;
+
 typedef enum
 {
 	Start,
@@ -273,11 +275,46 @@ int main(void)
   /////////////////////////////////////////////////////////////
   while (1)
   {
-	  UART_Protocal();
+
 
 	  if (micros() - Timestamp >= 10000) //10000us = 0.01s = 100Hz
 	  {
 		  Timestamp = micros();
+
+		  if(UART_Flow2_Ack)
+		  {
+			while(1)
+			{
+				while(1)
+				{
+					InputChar = UARTReadChar(&UART2);
+					if(InputChar != -1)
+					{
+						InputByte = (uint8_t)InputChar;
+						ak[0] = InputByte;
+						break;
+					}
+				}
+				while(1)
+				{
+					InputChar = UARTReadChar(&UART2);
+					if(InputChar != -1)
+					{
+						InputByte = (uint8_t)InputChar;
+						ak[1] = InputByte;
+						break;
+					}
+				}
+				if(ak[0] == 'X' && ak[1] == 'u')
+				{
+					break;
+				}
+			}
+		  }
+		  else
+		  {
+			  UART_Protocal();
+		  }
 
 		  if(Run)
 		  {
@@ -300,8 +337,6 @@ int main(void)
 //		  ProxiCheck();
 //		  MotorDrive();
 //		  I2C_Check();
-
-//		  RobotArm_Position = EncoderPosition_Update();
 	  }
 
     /* USER CODE END WHILE */
@@ -851,9 +886,10 @@ void planning()
   Vmax = 0.400;               //rad/s
   sb = angle*0.0174533;            //degree 2 rad
   sa = Lastest_Angle * 0.0174533;
-  tf = 15.00*(sb-sa)/(8.00*Vmax);     //get tf from vmax
-  if(sb < sa) { reverse = 1; distance = Lastest_Angle - angle; }
-  else        { reverse = 0; distance = angle - Lastest_Angle; }
+//  tf = 15.00*(sb-sa)/(8.00*Vmax);     //get tf from vmax
+
+  if(sb < sa) { reverse = 1; distance = Lastest_Angle - angle; tf = 15.00*(sa-sb)/(8.00*Vmax); }
+  else        { reverse = 0; distance = angle - Lastest_Angle; tf = 15.00*(sb-sa)/(8.00*Vmax); }
 
   if (distance <= 12)
   {flag_case = 1; }
@@ -880,9 +916,10 @@ void planning()
 	  a4= -15.00*(sb-sa)/(pow(tf,4));
 	  a5= 6.00*(sb-sa)/(pow(tf,5));
 	  if(t<=tf){
-	  sbf =  a3*pow(t,3)+a4*pow(t,4)+a5*pow(t,5);
-	  vb= (float)((3*a3*pow(t,2))+(4*a4*pow(t,3))+(5*a5*pow(t,4)));}
-	  else{tf=0; t=tf;vb=0;PWMOut=0; MotorDrive(); HAL_Delay(10); Run=0; UART_Ack2();}
+		  sbf =  a3*pow(t,3)+a4*pow(t,4)+a5*pow(t,5);
+		  vb= (float)((3*a3*pow(t,2))+(4*a4*pow(t,3))+(5*a5*pow(t,4)));}
+	  //else{tf=0; t=tf;vb=0;}
+	  else { vb=0; }
   }
 }
 
@@ -896,8 +933,39 @@ void pid()
 		 d = error - pre_error;
 		 pre_error = error;
 		 PWMOut =195+( (p*K_P)+(i*K_I)+(d*K_D));
+
 		 if(vb==0)
-		 {PWMOut=0; MotorDrive(); HAL_Delay(10); Run=0; UART_Ack2(); }
+		 {
+			if(reverse)
+			{
+				if((RobotArm_Position) < (uint16_t)(angle*20))
+				{
+					PWMOut=400;
+				}
+				if((RobotArm_Position) > (uint16_t)(angle*20))
+				{
+					PWMOut=-1000;
+				}
+			}
+			else
+			{
+				if((RobotArm_Position) < (uint16_t)(angle*20))
+				{
+					PWMOut=1000;
+				}
+				if((RobotArm_Position) > (uint16_t)(angle*20))
+				{
+					PWMOut=-400;
+				}
+			}
+
+			if((RobotArm_Position) == (uint16_t)(angle*20))
+			{
+				PWMOut=0;
+				Run=0;
+				UART_Ack2();
+			}
+		 }
 	}
 
 	else if (flag_case == 1)
@@ -1135,7 +1203,7 @@ void UART_Ack1()
 	HAL_Delay(1);
 	temp[0] = 'u'; //0b01110101
 	UARTTxWrite(&UART2, temp, 1);
-	HAL_Delay(1);
+	// HAL_Delay(1);
 }
 
 void UART_Ack2()
@@ -1146,7 +1214,7 @@ void UART_Ack2()
 	HAL_Delay(1);
 	temp[0] = 'n'; //0o156
 	UARTTxWrite(&UART2, temp, 1);
-	HAL_Delay(1);
+	// HAL_Delay(1);
 }
 
 void UART_Flow2()
@@ -1178,35 +1246,7 @@ void UART_Flow2()
 	ChkSum = ~(ChkSum);
 	temp[0] = ChkSum;
 	UARTTxWrite(&UART2, temp, 1);
-	HAL_Delay(1);
-
-	while(1)
-	{
-		while(1)
-		{
-			InputChar = UARTReadChar(&UART2);
-			if(InputChar != -1)
-			{
-				InputByte = (uint8_t)InputChar;
-				ak[0] = InputByte;
-				break;
-			}
-		}
-		while(1)
-		{
-			InputChar = UARTReadChar(&UART2);
-			if(InputChar != -1)
-			{
-				InputByte = (uint8_t)InputChar;
-				ak[1] = InputByte;
-				break;
-			}
-		}
-		if(ak[0] == 'X' && ak[1] == 'u')
-		{
-			break;
-		}
-	}
+	// HAL_Delay(1);
 }
 
 
@@ -1357,6 +1397,7 @@ void UART_Execute()
 			Lastest_Angle = Current_Angle;  //Fix Later
 			break;
 		case 8:
+			t = 0;
 			Run = 1;
 			break;
 		case 9:
