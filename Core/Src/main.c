@@ -960,7 +960,7 @@ void pid()
 		 i = i+error;
 		 d = error - pre_error;
 		 pre_error = error;
-		 PWMOut =195+( (p*K_P)+(i*K_I)+(d*K_D));
+		 PWMOut =( (p*K_P)+(i*K_I)+(d*K_D));
 
 		 if(vb==0)
 		 {
