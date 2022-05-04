@@ -146,6 +146,7 @@ uint8_t Multi_Station_Amount = 0;
 uint8_t Multi_Station_Current = 0;
 
 //uint16_t Multi_Station_Angle[11] = {0};
+//                                        1 2  3  4  5   6   7   8   9   10
 uint16_t Multi_Station_Angle[11] = {0,    5,45,55,65,90,180,210,270,325,355};
 
 uint8_t UART_Mode = 0;
@@ -966,22 +967,30 @@ void pid()
 		 {
 			if(reverse)
 			{
-				if((RobotArm_Position) < (uint16_t)(angle*20))
+				if((uint16_t)(angle*20) < 30*20 && (RobotArm_Position) > 330*20)
+				{
+					PWMOut=600;
+				}
+				else if((RobotArm_Position) < (uint16_t)(angle*20))
 				{
 					PWMOut=400;
 				}
-				if((RobotArm_Position) > (uint16_t)(angle*20))
+				else if((RobotArm_Position) > (uint16_t)(angle*20))
 				{
 					PWMOut=-1000;
 				}
 			}
 			else
 			{
-				if((RobotArm_Position) < (uint16_t)(angle*20))
+				if((uint16_t)(angle*20) > 330*20 && (RobotArm_Position) < 30*20)
+				{
+					PWMOut=-600;
+				}
+				else if((RobotArm_Position) < (uint16_t)(angle*20))
 				{
 					PWMOut=1000;
 				}
-				if((RobotArm_Position) > (uint16_t)(angle*20))
+				else if((RobotArm_Position) > (uint16_t)(angle*20))
 				{
 					PWMOut=-400;
 				}
@@ -1002,7 +1011,7 @@ void pid()
 			{
 				PWMOut=400;
 			}
-			if((RobotArm_Position) > (uint16_t)(angle*20))
+			else if((RobotArm_Position) > (uint16_t)(angle*20))
 			{
 				PWMOut=-1000;
 			}
@@ -1013,7 +1022,7 @@ void pid()
 			{
 				PWMOut=1000;
 			}
-			if((RobotArm_Position) > (uint16_t)(angle*20))
+			else if((RobotArm_Position) > (uint16_t)(angle*20))
 			{
 				PWMOut=-400;
 			}
