@@ -904,8 +904,7 @@ void kalmanfilter()
 void planning()
 {
   t=t+0.01;
-  Vmax = 0.400;                   //rad/s
-//  Vmax = Max_Speed * 0.10472;
+  Vmax = Max_Speed * 0.10472 * 0.9;     //rad/s
   sb = angle*0.0174533;           //degree -> rad
   sa = Lastest_Angle * 0.0174533; //degree -> rad
 
@@ -942,6 +941,7 @@ void planning()
 
 void ReachGoal()
 {
+	omega_est = 0;
 	PWMOut=0;
 	MotorDrive();
 	Run=0;
@@ -1385,7 +1385,8 @@ void UART_Execute()
 			UART_Flow2();
 			break;
 		case 11:
-			Speed = ( EncoderVelocity_Update() * 9.5493 );
+			Speed = ( omega_est * 9.5493 );
+			if(Speed < 0) { Speed = 0 - Speed; }
 			UART_Flow2();
 			break;
 		case 12:
