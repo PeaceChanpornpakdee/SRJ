@@ -66,6 +66,7 @@ uint64_t _micros = 0;
 uint64_t Timestamp = 0;
 uint64_t HomeTimestamp = 0;
 uint64_t LaserTimestamp = 0;
+uint64_t LaserDelay = 5000000;
 uint8_t  HomeMode = 0;
 uint8_t ProxiArray[2]   = {1,1};
 
@@ -116,7 +117,7 @@ float    Current_Angle = 0;
 uint8_t  Current_Station = 0;
 uint8_t  Current_Multi_Station = 0; // 1-15
 uint8_t  Clockwise = 0;
-uint8_t  Goal_Mode = 1; // 1-3
+uint8_t  Goal_Mode = 0; // 1-3
 float    Speed = 0;
 uint8_t   s = 0;
 uint8_t ak[2] = {0};
@@ -127,8 +128,9 @@ uint8_t  Serial_Speed;
 
 uint16_t Delay = 0;
 uint8_t Emergency = 0;
-uint8_t Run = 0;
+uint8_t Run  = 0;
 uint8_t Home = 0;
+uint8_t SpecialHome = 0;
 uint8_t Laser = 0;
 uint8_t MCU_Connected = 0;
 uint8_t EndEff_Enable = 0;
@@ -147,8 +149,8 @@ uint8_t Multi_Station_Amount = 0;
 uint8_t Multi_Station_Current = 0;
 
 //uint16_t Multi_Station_Angle[11] = {0};
-//                                        1 2  3  4  5   6   7   8   9   10
-uint16_t Multi_Station_Angle[11] = {0,    5,45,55,65,90,180,210,270,325,355};
+//                                        1 2 3  4  5   6   7   8   9   10
+uint16_t Multi_Station_Angle[11] = {0,    0,5,45,65,90,180,210,270,325,355};
 
 uint8_t UART_Mode = 0;
 
@@ -325,13 +327,17 @@ int main(void)
 
 		  if(Laser)
 		  {
-			  if (micros() - LaserTimestamp >= 5000000) //5000000us = 5s
+			  if(EndEff_Enable) { LaserDelay = 5000000; } //5000000us = 5s
+			  else              { LaserDelay = 1000000; } //1000000us = 1s
+
+			  if (micros() - LaserTimestamp >= LaserDelay)
 			  {
 				  if(Goal_Mode == 3)
 				  {
 					  if(Current_Multi_Station == Multi_Station_Amount-1)
 					  {
 						  UART_Ack2();
+						  Goal_Mode = 0;
 					  }
 					  else
 					  {
@@ -344,6 +350,7 @@ int main(void)
 				  else
 				  {
 					  UART_Ack2();
+					  Goal_Mode = 0;
 				  }
 				  Laser = 0;
 				  t = 0;
@@ -356,17 +363,26 @@ int main(void)
 		  }
 		  else if(Run)
 		  {
-			  RobotArm_Position = EncoderPosition_Update();
-			  EncoderVelocity_Update();
-			  planning();
-			  kalmanfilter();
-			  pid();
-			  MotorDrive();
+			  if(angle == 0)
+			  {
+				  angle = 15;
+				  SpecialHome = 1;
+			  }
+			  else
+			  {
+				  RobotArm_Position = EncoderPosition_Update();
+				  EncoderVelocity_Update();
+				  planning();
+				  kalmanfilter();
+				  pid();
+				  MotorDrive();
+			  }
 		  }
 
 		  else if(Home)
 		  {
 			  RobotArm_Position = EncoderPosition_Update();
+			  kalmanfilter();
 			  SetHome();
 		  }
 	  }
@@ -852,6 +868,12 @@ void SetHome()
 			htim1.Instance->CNT = 0;
 			HomeMode = 0;
 			Home = 0;
+			Lastest_Angle = 0;
+			if(Goal_Mode != 0)
+			{
+				SpecialHome = 0;
+				ReachGoal();
+			}
 		}
 	}
 
@@ -976,13 +998,25 @@ void planning()
 
 void ReachGoal()
 {
-	omega_est = 0;
-	PWMOut=0;
-	MotorDrive();
-	Run=0;
-	HAL_I2C_Master_Transmit_IT(&hi2c1, EndeffAddress, LaserOpenCommand, 1);
-	Laser = 1;
-	LaserTimestamp = micros();
+	if(SpecialHome)
+	{
+	  PWMOut=0;
+	  MotorDrive();
+	  Run = 0;
+	  Home = 1;
+	  HomeMode = 1;
+	  HomeTimestamp = micros();
+	}
+	else
+	{
+		omega_est = 0;
+		PWMOut=0;
+		MotorDrive();
+		Run=0;
+		if(EndEff_Enable) { HAL_I2C_Master_Transmit_IT(&hi2c1, EndeffAddress, LaserOpenCommand, 1); }
+		Laser = 1;
+		LaserTimestamp = micros();
+	}
 }
 
 
