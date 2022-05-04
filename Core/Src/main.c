@@ -60,7 +60,7 @@ DMA_HandleTypeDef hdma_usart2_tx;
 uint8_t test = 0;
 
 
-
+uint8_t EmergencyArray[2] = {1,1};
 uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
 uint64_t Timestamp = 0;
@@ -126,6 +126,7 @@ uint16_t Serial_Angle;
 uint8_t  Serial_Speed;
 
 uint16_t Delay = 0;
+uint8_t Emergency = 0;
 uint8_t Run = 0;
 uint8_t Home = 0;
 uint8_t Laser = 0;
@@ -186,6 +187,7 @@ static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 void NucleoCheck();
+void EmergencyCheck();
 uint64_t micros();
 void ProxiCheck();
 void MotorDrive();
@@ -263,8 +265,13 @@ int main(void)
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-  HomeMode = 10;
-  SetHome();
+
+  if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10) == 1)
+  {
+	  HomeMode = 10;
+	  SetHome();
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -272,11 +279,12 @@ int main(void)
   /////////////////////////////////////////////////////////////
   while (1)
   {
-
-
 	  if (micros() - Timestamp >= 10000) //10000us = 0.01s = 100Hz
 	  {
 		  Timestamp = micros();
+
+		  NucleoCheck();
+		  EmergencyCheck();
 
 		  if(UART_Flow2_Ack)
 		  {
@@ -342,6 +350,10 @@ int main(void)
 			  }
 		  }
 
+		  if(Emergency)
+		  {
+			  // Do Nothing
+		  }
 		  else if(Run)
 		  {
 			  RobotArm_Position = EncoderPosition_Update();
@@ -357,8 +369,6 @@ int main(void)
 			  RobotArm_Position = EncoderPosition_Update();
 			  SetHome();
 		  }
-
-		  NucleoCheck();
 	  }
 
     /* USER CODE END WHILE */
@@ -723,6 +733,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PA10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PB4 PB5 */
   GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -742,6 +758,24 @@ void NucleoCheck()
 	if(ButtonArray[0]==1 && ButtonArray[1]==0) //When Released Button
 	{
 		HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	}
+}
+
+void EmergencyCheck()
+{
+	EmergencyArray[1] = EmergencyArray[0];
+	EmergencyArray[0] = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10);
+
+	if(EmergencyArray[0]==0 && EmergencyArray[1]==1) //When Pressed Emergency
+	{
+		Emergency = 1;
+		PWMOut = 0;
+	}
+	else if(EmergencyArray[0]==1 && EmergencyArray[1]==0) //When Released Emergency
+	{
+		Emergency = 0;
+		Lastest_Angle = Current_Angle;
+		t = 0;
 	}
 }
 
