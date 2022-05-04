@@ -94,10 +94,7 @@ float get_station=0;float get_position=0;float now_postion=0;
 uint8_t reverse = 0;
 float distance = 0;
 
-uint8_t LaserOpenTrigger = 0;
-uint8_t LaserOpenCommand = 0x45;
-uint8_t LaserReadCommand = 0x23;
-uint8_t LaserStatus = 0x78;
+uint8_t LaserOpenCommand[1] = {0x45};
 
 typedef struct _UartStructure
 {
@@ -148,7 +145,7 @@ uint8_t Multi_Station[16] = {0};
 uint8_t Multi_Station_Amount = 0;
 uint8_t Multi_Station_Current = 0;
 
-//uint16_t Multi_Station_Angle[10] = {0};
+//uint16_t Multi_Station_Angle[11] = {0};
 uint16_t Multi_Station_Angle[11] = {0,    5,45,55,65,90,180,210,270,325,355};
 
 uint8_t UART_Mode = 0;
@@ -193,8 +190,6 @@ void ProxiCheck();
 void MotorDrive();
 void SetHome();
 uint32_t EncoderPosition_Update();
-void I2C_Laser();
-void I2C_Check();
 float EncoderVelocity_Update();
 void ReachGoal();
 void pid();
@@ -362,11 +357,7 @@ int main(void)
 			  SetHome();
 		  }
 
-
 		  NucleoCheck();
-//		  ProxiCheck();
-//		  MotorDrive();
-//		  I2C_Check();
 	  }
 
     /* USER CODE END WHILE */
@@ -437,7 +428,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 400000;
+  hi2c1.Init.ClockSpeed = 50000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -914,6 +905,7 @@ void planning()
 {
   t=t+0.01;
   Vmax = 0.400;                   //rad/s
+//  Vmax = Max_Speed * 0.10472;
   sb = angle*0.0174533;           //degree -> rad
   sa = Lastest_Angle * 0.0174533; //degree -> rad
 
@@ -957,6 +949,7 @@ void ReachGoal()
 	PWMOut=0;
 	MotorDrive();
 	Run=0;
+	HAL_I2C_Master_Transmit_IT(&hi2c1, EndeffAddress, LaserOpenCommand, 1);
 	Laser = 1;
 	LaserTimestamp = micros();
 }
@@ -1110,26 +1103,6 @@ void pid()
 		{
 			ReachGoal();
 		}
-	}
-}
-
-void I2C_Laser()
-{
-	HAL_I2C_Master_Transmit(&hi2c1, EndeffAddress, &LaserOpenCommand, 1, 500);
-	for (int j=0; j<11; j++)
-	{
-		HAL_I2C_Master_Transmit(&hi2c1, EndeffAddress, &LaserReadCommand, 1, 500);
-		HAL_I2C_Master_Receive(&hi2c1, EndeffAddress, &LaserStatus, 1, 500);
-		HAL_Delay(500);
-	}
-}
-
-void I2C_Check()
-{
-	if(LaserOpenTrigger == 1)
-	{
-		I2C_Laser();
-		LaserOpenTrigger = 0;
 	}
 }
 
@@ -1399,7 +1372,6 @@ void UART_Execute()
 			break;
 		case 4:
 			Max_Speed = Data_Frame2[1] * 10 / 255;
-			Vmax = Max_Speed;
 			break;
 		case 5:
 			Goal_Mode = 1;
