@@ -912,10 +912,7 @@ void planning()
   if(sb < sa) { reverse = 1; distance = Lastest_Angle - angle; tf = 15.00*(sa-sb)/(8.00*Vmax); }
   else        { reverse = 0; distance = angle - Lastest_Angle; tf = 15.00*(sb-sa)/(8.00*Vmax); }
 
-  if (distance <= 12)
-  {flag_case = 1; }
-
-  if (distance > 12 && distance <=30)
+  if (distance <=30)
   { flag_case = 3; }
 
   if (distance > 30 && distance <=60)
@@ -939,7 +936,6 @@ void planning()
 	  if(t<=tf){
 		  sbf =  a3*pow(t,3)+a4*pow(t,4)+a5*pow(t,5);
 		  vb= (float)((3*a3*pow(t,2))+(4*a4*pow(t,3))+(5*a5*pow(t,4)));}
-	  //else{tf=0; t=tf;vb=0;}
 	  else { vb=0; }
   }
 }
@@ -998,21 +994,6 @@ void pid()
 		 }
 	}
 
-	else if (flag_case == 1)
-	{
-		if((RobotArm_Position) < (uint16_t)(angle*20))
-		{
-			PWMOut=400;
-		}
-		else if((RobotArm_Position) > (uint16_t)(angle*20))
-		{
-			PWMOut=-400;
-		}
-		else if((RobotArm_Position) == (uint16_t)(angle*20))
-		{
-			ReachGoal();
-		}
-	}
 	else if (flag_case == 3)
 	{
 		if(reverse)
