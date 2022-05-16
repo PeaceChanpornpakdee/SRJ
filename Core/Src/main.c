@@ -59,6 +59,8 @@ DMA_HandleTypeDef hdma_usart2_tx;
 
 uint8_t test = 0;
 
+float sample1 = 99.0;
+float sample2 = 100.0;
 
 uint8_t EmergencyArray[2] = {1,1};
 uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
@@ -94,6 +96,16 @@ float get_station=0;float get_position=0;float now_postion=0;
 
 uint8_t reverse = 0;
 float distance = 0;
+
+
+float graph_p=0;
+float graph_v=0;
+float graph_a=0;
+float v_pre=0;
+float v_aft=0;
+float p2graph=0;
+float v2graph=0;
+float a2graph=0;
 
 uint8_t LaserOpenCommand[1] = {0x45};
 
@@ -273,7 +285,6 @@ int main(void)
 	  HomeMode = 10;
 	  SetHome();
   }
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -913,12 +924,13 @@ uint32_t EncoderPosition_Update()
 }
 
 float EncoderVelocity_Update()
-{   static uint32_t EncoderLastPosition = 0;
+{
+	static uint32_t EncoderLastPosition = 0;
 	static uint64_t EncoderLastTimestamp = 0;
 	uint32_t EncoderNowPosition = HTIM_ENCODER.Instance->CNT;
 	uint64_t EncoderNowTimestamp = micros();
 	int32_t EncoderPositionDiff;
-	uint64_t EncoderTimeDiff;
+	uint64_t EncoderTimeDiff; sample2 = 102.0;
 	EncoderTimeDiff = EncoderNowTimestamp - EncoderLastTimestamp;
 	EncoderPositionDiff = EncoderNowPosition - EncoderLastPosition;
 	if (EncoderPositionDiff >= MAX_SUBPOSITION_OVERFLOW)
@@ -929,7 +941,7 @@ float EncoderVelocity_Update()
 	EncoderLastTimestamp = EncoderNowTimestamp;
 	raw =(float)(EncoderPositionDiff * 1000000.00) / (float) EncoderTimeDiff;
 	rad = raw* 0.05*2.00*3.141592/360.00;
-	return  rad;
+	return rad;
 }
 
 void kalmanfilter()
@@ -937,6 +949,9 @@ void kalmanfilter()
 	 R = pow(w,2);
 	 theta_est = theta_pd + omega_pd*dt1;
 	 omega_est = omega_pd;
+
+	 v_pre = omega_est;
+
 	 y = (rad-omega_est);
 
     p11 = p11 + dt1*p21+ (Q*pow(dt1,4))/4 + (pow(dt1,2))*(p12+dt1*p22)/dt1;
@@ -956,6 +971,11 @@ void kalmanfilter()
     omega_pd=omega_est;
 
     kalman_theta=(float)(theta_est*57.2958);
+
+    p2graph = RobotArm_Position / 20.00;
+    v2graph = omega_est * 8.1493;
+    a2graph = ( ( a2graph*sample1 ) + ( (float)((v_pre-v_aft)/0.01) ) ) / sample2; //Add Low Pass Filter
+    v_aft = v_pre;
 }
 
 void planning()
