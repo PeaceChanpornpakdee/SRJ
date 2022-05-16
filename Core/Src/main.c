@@ -365,7 +365,7 @@ int main(void)
 		  {
 			  if(angle == 0)
 			  {
-				  angle = 15;
+				  angle = 5;
 				  SpecialHome = 1;
 			  }
 			  else
@@ -961,7 +961,7 @@ void kalmanfilter()
 void planning()
 {
   t=t+0.01;
-  Vmax = Max_Speed * 0.10472 * 0.9;     //rad/s
+  Vmax = Max_Speed * 0.10472 * 0.95;     //rad/s
   sb = angle*0.0174533;           //degree -> rad
   sa = Lastest_Angle * 0.0174533; //degree -> rad
 
@@ -969,20 +969,16 @@ void planning()
   else        { reverse = 0; distance = angle - Lastest_Angle; tf = 15.00*(sb-sa)/(8.00*Vmax); }
 
   if (distance <=30)
-  { flag_case = 3; }
+  { flag_case = 1; }
 
-  if (distance > 30 && distance <=60)
-  { flag_case = 4; }
-
-  if (distance > 60 && distance <=90)
-  { flag_case = 5; }
-
-  if (distance > 90){
+  if (distance > 30){
 
 	  flag_case = 2;
-	  if(0.5>=(5.7335*(sb-sa)/(pow(tf,2))))  //check accerelation
-	  {tf=tf;}
-	  else{tf=pow((5.7335*(sb-sa)/0.5),0.5);}
+//	  if(0.5>=(5.7335*(sb-sa)/(pow(tf,2))))  //check accerelation
+//	  {tf=tf;}
+//	  else{tf=pow((5.7335*(sb-sa)/0.5),0.5);}
+	  if(reverse) { tf=pow((5.7335*(sa-sb)/0.5),0.5) * 0.9; }
+	  else        { tf=pow((5.7335*(sb-sa)/0.5),0.5) * 0.9; }
 	  a0=0;
 	  a1=0;
 	  a2=0;
@@ -1004,8 +1000,7 @@ void ReachGoal()
 	  MotorDrive();
 	  Run = 0;
 	  Home = 1;
-	  HomeMode = 1;
-	  HomeTimestamp = micros();
+	  HomeMode = 2;
 	}
 	else
 	{
@@ -1033,110 +1028,60 @@ void pid()
 
 		 if(vb==0)
 		 {
-			if(reverse)
+			if(SpecialHome)
 			{
-				if((uint16_t)(angle*20) < 30*20 && (RobotArm_Position) > 330*20)
-				{
-					PWMOut=600;
-				}
-				else if((RobotArm_Position) < (uint16_t)(angle*20))
-				{
-					PWMOut=400;
-				}
-				else if((RobotArm_Position) > (uint16_t)(angle*20))
-				{
-					PWMOut=-1000;
-				}
+				ReachGoal();
 			}
 			else
 			{
-				if((uint16_t)(angle*20) > 330*20 && (RobotArm_Position) < 30*20)
+				if(reverse)
 				{
-					PWMOut=-600;
+					if((uint16_t)(angle*20) < 30*20 && (RobotArm_Position) > 330*20)
+					{
+						PWMOut=600;
+					}
+					else if((RobotArm_Position) < (uint16_t)(angle*20))
+					{
+						PWMOut=400;
+					}
+					else if((RobotArm_Position) > (uint16_t)(angle*20))
+					{
+						PWMOut=-1000;
+					}
 				}
-				else if((RobotArm_Position) < (uint16_t)(angle*20))
+				else
 				{
-					PWMOut=1000;
+					if((uint16_t)(angle*20) > 330*20 && (RobotArm_Position) < 30*20)
+					{
+						PWMOut=-600;
+					}
+					else if((RobotArm_Position) < (uint16_t)(angle*20))
+					{
+						PWMOut=1000;
+					}
+					else if((RobotArm_Position) > (uint16_t)(angle*20))
+					{
+						PWMOut=-400;
+					}
 				}
-				else if((RobotArm_Position) > (uint16_t)(angle*20))
-				{
-					PWMOut=-400;
-				}
-			}
 
-			if((RobotArm_Position) == (uint16_t)(angle*20))
-			{
-				ReachGoal();
+				if((RobotArm_Position) == (uint16_t)(angle*20))
+				{
+					ReachGoal();
+				}
 			}
 		 }
 	}
 
-	else if (flag_case == 3)
+	else if (flag_case == 1)
 	{
 		if(reverse)
 		{
-			if((RobotArm_Position) < (uint16_t)(angle*20))
+			if((uint16_t)(angle*20) < 30*20 && (RobotArm_Position) > 330*20)
 			{
-				PWMOut=400;
+				PWMOut=600;
 			}
-			else if((RobotArm_Position) > (uint16_t)(angle*20))
-			{
-				PWMOut=-1000;
-			}
-		}
-		else
-		{
-			if((RobotArm_Position) < (uint16_t)(angle*20))
-			{
-				PWMOut=1000;
-			}
-			else if((RobotArm_Position) > (uint16_t)(angle*20))
-			{
-				PWMOut=-400;
-			}
-		}
-
-		if((RobotArm_Position) == (uint16_t)(angle*20))
-		{
-			ReachGoal();
-		}
-	}
-	else if (flag_case == 4)
-	{
-		if(reverse)
-		{
-			if((RobotArm_Position) < (uint16_t)(angle*20))
-			{
-				PWMOut=300;
-			}
-			else if((RobotArm_Position) > (uint16_t)(angle*20))
-			{
-				PWMOut=-1500;
-			}
-		}
-		else
-		{
-			if((RobotArm_Position) < (uint16_t)(angle*20))
-			{
-				PWMOut=1500;
-			}
-			else if((RobotArm_Position) > (uint16_t)(angle*20))
-			{
-				PWMOut=-300;
-			}
-		}
-
-
-		if((RobotArm_Position) == (uint16_t)(angle*20))
-		{
-			ReachGoal();
-		}
-	}
-	else if (flag_case == 5)
-	{
-		if(reverse)
-		{
-			if((RobotArm_Position) < (uint16_t)(angle*20))
+			else if((RobotArm_Position) < (uint16_t)(angle*20))
 			{
 				PWMOut=300;
 			}
@@ -1147,7 +1092,11 @@ void pid()
 		}
 		else
 		{
-			if((RobotArm_Position) < (uint16_t)(angle*20))
+			if((uint16_t)(angle*20) > 330*20 && (RobotArm_Position) < 30*20)
+			{
+				PWMOut=-600;
+			}
+			else if((RobotArm_Position) < (uint16_t)(angle*20))
 			{
 				PWMOut=1600;
 			}
