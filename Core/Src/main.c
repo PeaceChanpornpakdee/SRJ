@@ -68,6 +68,7 @@ uint64_t _micros = 0;
 uint64_t Timestamp = 0;
 uint64_t HomeTimestamp = 0;
 uint64_t LaserTimestamp = 0;
+uint64_t EmergencyTimestamp = 0;
 uint64_t LaserDelay = 5000000;
 uint8_t  HomeMode = 0;
 uint8_t ProxiArray[2]   = {1,1};
@@ -370,13 +371,36 @@ int main(void)
 
 		  if(Emergency)
 		  {
-			  // Do Nothing
+			  if(Emergency == 2)
+			  {
+				  if(micros() - EmergencyTimestamp >= 1000000)
+				  {
+					  theta_est = 0;
+					  omega_est = 0;
+					  theta_pd = 0;
+					  omega_pd = 0;
+					  vb = 0;
+					  error = 0;
+					  p = 0;
+					  i = 0;
+					  d = 0;
+					  pre_error = 0;
+					  Emergency = 0;
+					  Lastest_Angle = Current_Angle;
+					  t = 0;
+				  }
+				  else
+				  {
+					  PWMOut = 0;
+					  MotorDrive();
+				  }
+			  }
 		  }
 		  else if(Run)
 		  {
 			  if(angle == 0)
 			  {
-				  angle = 5;
+				  angle = 10;
 				  SpecialHome = 1;
 			  }
 			  else
@@ -797,12 +821,14 @@ void EmergencyCheck()
 	{
 		Emergency = 1;
 		PWMOut = 0;
+		MotorDrive();
 	}
 	else if(EmergencyArray[0]==1 && EmergencyArray[1]==0) //When Released Emergency
 	{
-		Emergency = 0;
-		Lastest_Angle = Current_Angle;
-		t = 0;
+		PWMOut = 0;
+		MotorDrive();
+		Emergency = 2;
+		EmergencyTimestamp = micros();
 	}
 }
 
@@ -988,17 +1014,20 @@ void planning()
   if(sb < sa) { reverse = 1; distance = Lastest_Angle - angle; tf = 15.00*(sa-sb)/(8.00*Vmax); }
   else        { reverse = 0; distance = angle - Lastest_Angle; tf = 15.00*(sb-sa)/(8.00*Vmax); }
 
-  if (distance <=30)
+  if (distance <=32)
   { flag_case = 1; }
 
-  if (distance > 30){
+  if (distance > 32){
 
 	  flag_case = 2;
 //	  if(0.5>=(5.7335*(sb-sa)/(pow(tf,2))))  //check accerelation
 //	  {tf=tf;}
 //	  else{tf=pow((5.7335*(sb-sa)/0.5),0.5);}
-	  if(reverse) { tf=pow((5.7335*(sa-sb)/0.5),0.5) * 0.9; }
-	  else        { tf=pow((5.7335*(sb-sa)/0.5),0.5) * 0.9; }
+	  if(Max_Speed == 10)
+	  {
+		  if(reverse) { tf=pow((5.7335*(sa-sb)/0.5),0.5) * 0.9; }
+		  else        { tf=pow((5.7335*(sb-sa)/0.5),0.5) * 0.9; }
+	  }
 	  a0=0;
 	  a1=0;
 	  a2=0;
@@ -1062,11 +1091,11 @@ void pid()
 					}
 					else if((RobotArm_Position) < (uint16_t)(angle*20))
 					{
-						PWMOut=400;
+						PWMOut=600;
 					}
 					else if((RobotArm_Position) > (uint16_t)(angle*20))
 					{
-						PWMOut=-1000;
+						PWMOut=-600;
 					}
 				}
 				else
@@ -1077,11 +1106,11 @@ void pid()
 					}
 					else if((RobotArm_Position) < (uint16_t)(angle*20))
 					{
-						PWMOut=1000;
+						PWMOut=600;
 					}
 					else if((RobotArm_Position) > (uint16_t)(angle*20))
 					{
-						PWMOut=-400;
+						PWMOut=-600;
 					}
 				}
 
