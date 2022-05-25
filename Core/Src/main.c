@@ -59,9 +59,6 @@ DMA_HandleTypeDef hdma_usart2_tx;
 
 uint8_t test = 0;
 
-float sample1 = 99.0;
-float sample2 = 100.0;
-
 uint8_t EmergencyArray[2] = {1,1};
 uint8_t ButtonArray[2] = {1,1};  //[Now, Last] = {UP, UP}
 uint64_t _micros = 0;
@@ -94,6 +91,7 @@ float pre_error=0;float error=0;
 uint8_t push=0;float n=0;float angle=0;float kalman_theta=0;float rb_pos=0;float float_encode=0;
 uint8_t flag_case = 0;
 float get_station=0;float get_position=0;float now_postion=0;
+float sample1 = 99.0; float sample2 = 100.0;
 
 uint8_t reverse = 0;
 float distance = 0;
@@ -213,6 +211,7 @@ void ReachGoal();
 void pid();
 void kalmanfilter();
 void planning();
+void VariableReset();
 
 void UARTInit(UARTStucrture *uart);
 void UARTResetStart(UARTStucrture *uart);
@@ -375,16 +374,7 @@ int main(void)
 			  {
 				  if(micros() - EmergencyTimestamp >= 1000000)
 				  {
-					  theta_est = 0;
-					  omega_est = 0;
-					  theta_pd = 0;
-					  omega_pd = 0;
-					  vb = 0;
-					  error = 0;
-					  p = 0;
-					  i = 0;
-					  d = 0;
-					  pre_error = 0;
+					  VariableReset();
 					  Emergency = 0;
 					  Lastest_Angle = Current_Angle;
 					  t = 0;
@@ -956,7 +946,7 @@ float EncoderVelocity_Update()
 	uint32_t EncoderNowPosition = HTIM_ENCODER.Instance->CNT;
 	uint64_t EncoderNowTimestamp = micros();
 	int32_t EncoderPositionDiff;
-	uint64_t EncoderTimeDiff; sample2 = 102.0;
+	uint64_t EncoderTimeDiff; sample2 = 104.0;
 	EncoderTimeDiff = EncoderNowTimestamp - EncoderLastTimestamp;
 	EncoderPositionDiff = EncoderNowPosition - EncoderLastPosition;
 	if (EncoderPositionDiff >= MAX_SUBPOSITION_OVERFLOW)
@@ -1041,8 +1031,24 @@ void planning()
   }
 }
 
+void VariableReset()
+{
+	theta_est = 0;
+	omega_est = 0;
+    theta_pd = 0;
+	omega_pd = 0;
+	vb = 0;
+	error = 0;
+	p = 0;
+	i = 0;
+	d = 0;
+	pre_error = 0;
+}
+
 void ReachGoal()
 {
+	VariableReset();
+
 	if(SpecialHome)
 	{
 	  PWMOut=0;
@@ -1053,7 +1059,7 @@ void ReachGoal()
 	}
 	else
 	{
-		omega_est = 0;
+//		omega_est = 0;
 		PWMOut=0;
 		MotorDrive();
 		Run=0;
