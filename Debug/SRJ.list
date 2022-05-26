@@ -5173,7 +5173,7 @@ void pid()
  8002f7e:	881b      	ldrh	r3, [r3, #0]
  8002f80:	429a      	cmp	r2, r3
  8002f82:	d269      	bcs.n	8003058 <pid+0x360>
-				PWMOut=-1600;
+				PWMOut=-1000;
  8002f84:	4b19      	ldr	r3, [pc, #100]	; (8002fec <pid+0x2f4>)
  8002f86:	4a1f      	ldr	r2, [pc, #124]	; (8003004 <pid+0x30c>)
  8002f88:	601a      	str	r2, [r3, #0]
@@ -5216,7 +5216,7 @@ void pid()
  8002ff8:	20000194 	.word	0x20000194
  8002ffc:	20000110 	.word	0x20000110
  8003000:	fffffda8 	.word	0xfffffda8
- 8003004:	fffff9c0 	.word	0xfffff9c0
+ 8003004:	fffffc18 	.word	0xfffffc18
 			else if((RobotArm_Position) < (uint16_t)(angle*20))
  8003008:	4b1d      	ldr	r3, [pc, #116]	; (8003080 <pid+0x388>)
  800300a:	edd3 7a00 	vldr	s15, [r3]
@@ -5229,9 +5229,9 @@ void pid()
  8003022:	881b      	ldrh	r3, [r3, #0]
  8003024:	429a      	cmp	r2, r3
  8003026:	d904      	bls.n	8003032 <pid+0x33a>
-				PWMOut=1600;
+				PWMOut=1000;
  8003028:	4b17      	ldr	r3, [pc, #92]	; (8003088 <pid+0x390>)
- 800302a:	f44f 62c8 	mov.w	r2, #1600	; 0x640
+ 800302a:	f44f 727a 	mov.w	r2, #1000	; 0x3e8
  800302e:	601a      	str	r2, [r3, #0]
  8003030:	e012      	b.n	8003058 <pid+0x360>
 			else if((RobotArm_Position) > (uint16_t)(angle*20))
